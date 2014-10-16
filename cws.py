@@ -8,7 +8,7 @@ import subprocess
 import sys
 import win32api
 import win32event 
-from win32process import DETACHED_PROCESS
+from win32process import DETACHED_PROCESS, CREATE_NEW_PROCESS_GROUP, CREATE_NEW_CONSOLE
 import win32serviceutil  
 import win32service  
 
@@ -25,10 +25,10 @@ class CockpitWindowsService(win32serviceutil.ServiceFramework):
     Creates a service based on information in the 'WindowsService'
     section of a configuration file. The config. file must specify
     the service 'name' and a 'module' to serve.
-    The module is run as a script.  When the service is stopped, it
-    will send CTRL_BREAK_EVENT to the script: the script should override
-    default SIGBREAK handler to do whatever cleanup it needs before
-    exiting.
+    The module must implement a 'Server' class, with 'run' and 'shutdown'
+    methods.
+    (The original intention was to run the module as a script, then
+    use signals to trigger shutdown ... but Windows IPC sucks.)
     """
 
     # Windows services parameters are needed before an instance is 
@@ -50,8 +50,7 @@ class CockpitWindowsService(win32serviceutil.ServiceFramework):
 
 
     def __init__(self, args):
-        # The process in which the server module is executed.
-        self.child = None
+        self.server = None
 
         # Initialise service framework.
         win32serviceutil.ServiceFramework.__init__(self,args)  
@@ -69,45 +68,23 @@ class CockpitWindowsService(win32serviceutil.ServiceFramework):
 
     def SvcDoRun(self):
         self.ReportServiceStatus(win32service.SERVICE_START_PENDING)
-        # Popen argument list: python.exe, the absolute path to the module
-        # file and any optional args.
-        # python.exe is literal because sys.executable because returns
-        # pythonservice.exe which won't run our script.
-        cmd = ['python.exe',
-               imp.find_module(self.device_module)[1],
-              ] + self.module_args.split(' ')
-        # Popen kwargs.
-        kwargs = {}
-        # Set the correct path.
-        kwargs['cwd'] = PATH
-        # Create a new process group so we can send CTRL_BREAK_EVENTs.
-        #kwargs['creationflags'] = subprocess.CREATE_NEW_PROCESS_GROUP
-        kwargs['creationflags'] = DETACHED_PROCESS
+        device = __import__(self.device_module)
+        self.ReportServiceStatus(win32service.SERVICE_RUNNING)
         try:
-            # Launch the script as a child process.
-            self.child = subprocess.Popen(cmd, **kwargs)
+            self.server = device.Server()
+            self.log('%s.server created.' % self.device_module)
+            self.server.run()
         except Exception as e:
-            self.log(e.message, error=True)
+            self.log(e.message, error = True)
             # Exit with non-zero error code so Windows will attempt to restart.
             sys.exit(-1)
-        self.ReportServiceStatus(win32service.SERVICE_RUNNING)
-        
-        self.log('Launched %s\nPID %s' % (' '.join(cmd), self.child.pid))
         win32event.WaitForSingleObject(self.stop_event, win32event.INFINITE)
 
 
     def SvcStop(self):  
         self.ReportServiceStatus(win32service.SERVICE_STOP_PENDING)
-        self.log("Stopping - terminitaing process %s." % self.child.pid)
-        # Try to send CTRL_BREAK_EVENT to the child process.
-        #self.child.send_signal(CTRL_BREAK_EVENT)
-        os.kill(self.child.pid, CTRL_BREAK_EVENT)
-        #except:
-        #    # If the child process has already exited, os.kill will produce
-        #    # WindowsError: [Error 5] Access is denied.
-        #    pass
-        # Wait for the child process to do any cleanup.
-        self.child.wait()
+        self.server.shutdown()
+        self.log('%s.server shutdown complete.' % self.device_module)
         self.ReportServiceStatus(win32service.SERVICE_STOPPED)
 
 

@@ -4,30 +4,24 @@ import signal
 import sys
 import time
 
-exitFlag = False
-
 def log(message):
     if 'stdout' in sys.argv:
         print(message)
     else:
         servicemanager.LogInfoMsg(message)
-    
 
-def shutdown(sig, frame):
-    log('Shutting down with signal %s' % sig)
-    # Do any cleanup here.
-    # Exit
-    sys.exit()
+class Server(object):
+    def __init__(self):
+        self.exitFlag = False
+   
 
-if __name__ == '__main__':  
-    msg = 'TestModule started in %s, PID %s' % (__name__, os.getpid())
-    msg += '\nArgs were:\n'
-    msg += ' '.join(sys.argv)
-    log(msg)
+    def run(self):
+        while not self.exitFlag:
+            pass
 
-    # Override SIGBREAK
-    signal.signal(signal.SIGBREAK, shutdown)
-    
-    # Main loop
-    while True:
-        pass
+
+    def shutdown(self):
+        log('%s server shutting down.' % __name__)
+        # Do any cleanup here.
+        # Exit
+        self.exitFlag = True
