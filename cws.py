@@ -34,7 +34,7 @@ class CockpitWindowsService(win32serviceutil.ServiceFramework):
     # Windows services parameters are needed before an instance is 
     # created, so must be set here: read the config and est them.
     config = configparser.ConfigParser()
-    config.read(PATH + '\cws.conf')
+    config.read(os.path.join(PATH, 'cws.conf'))
     name = config.get(CONFIG_NAME, 'name')
     # Make the short service name CamelCase.
     _svc_name_ = ('cockpit ' + name).title().replace(' ', '')
