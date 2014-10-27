@@ -20,7 +20,7 @@ class Server(object):
             pass
 
 
-    def shutdown(self):
+    def stop(self):
         log('%s server shutting down.' % __name__)
         # Do any cleanup here.
         # Exit

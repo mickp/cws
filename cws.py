@@ -83,7 +83,7 @@ class CockpitWindowsService(win32serviceutil.ServiceFramework):
 
     def SvcStop(self):  
         self.ReportServiceStatus(win32service.SERVICE_STOP_PENDING)
-        self.server.shutdown()
+        self.server.stop()
         self.log('%s.server shutdown complete.' % self.device_module)
         self.ReportServiceStatus(win32service.SERVICE_STOPPED)
 
